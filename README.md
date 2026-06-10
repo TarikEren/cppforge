@@ -53,3 +53,11 @@ cminit memcheck
 
 - Runs valgrind with
 `valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes ./build/main`
+
+## Installation
+
+Simply run
+
+```bash
+make install
+```
