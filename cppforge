@@ -1,0 +1,186 @@
+#!/usr/bin/bash
+
+set -euo pipefail
+
+display_help() {
+    printf "Available commands:\n"
+    printf "\tinit [NAME]: Initializes project with the given name\n"
+    printf "\tbuild: Builds the project at the current working directory\n"
+    printf "\trun: Runs the project at the current working directory\n"
+    printf "\tsync: Synchronizes the source files and CMakeLists.txt in the current working directory\n"
+}
+
+init() {
+    local name=""
+    local cmake_version="3.23"
+    local cpp_standard="20"
+
+    if [[ $# -eq 0 ]]; then
+        printf "[ERROR] You must provide a project name\n"
+        return 1
+    fi
+
+    name="${1//[[:space:]]/}"
+    if [[ ! "$name" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+        printf "[ERROR] Invalid project name '%s'. Use only letters, numbers, hyphens, underscores\n" "$name"
+        return 1
+    fi
+    shift
+
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+        "--cmake")
+            if [[ $# -lt 2 ]]; then
+                printf "[ERROR] --cmake requires a value\n"
+                return 1
+            fi
+            cmake_version="$2"
+            shift 2
+            ;;
+        "--std")
+            if [[ $# -lt 2 ]]; then
+                printf "[ERROR] --std requires a value\n"
+                return 1
+            fi
+            cpp_standard="$2"
+            shift 2
+            ;;
+        *)
+            printf "[WARN] Unknown argument '%s', ignoring\n" "$1"
+            shift
+            ;;
+        esac
+    done
+
+    local valid_standards="98 03 11 14 17 20 23 26"
+    if [[ ! " $valid_standards " =~ " $cpp_standard " ]]; then
+        printf "[ERROR] Invalid C++ standard '%s'. Valid: %s\n" "$cpp_standard" "$valid_standards"
+        return 1
+    fi
+
+    printf "[INFO] Generating directories for project %s\n" "$name"
+    mkdir "$name"
+    mkdir "$name/include"
+    mkdir "$name/src"
+
+    printf "[INFO] Generating main.cpp\n"
+    cat <<EOF >$name/main.cpp
+#include <iostream>
+int main(int argc, char *argv[]) {
+    std::cout << "Hello, World!" << std::endl;
+    return 0;
+}
+EOF
+
+    printf "[INFO] Generating CMakeLists.txt\n"
+    cat <<EOF >$name/CMakeLists.txt
+cmake_minimum_required(VERSION $cmake_version)
+project($name)
+add_executable(main)
+set(CMAKE_CXX_STANDARD $cpp_standard)
+set(CMAKE_CXX_STANDARD_REQUIRED on)
+target_include_directories(main PRIVATE include)
+target_sources(main PRIVATE
+    main.cpp
+)
+EOF
+
+    printf "[INFO] Generating .source_files\n"
+    cat <<'EOF' >$name/.source_files
+main.cpp
+EOF
+
+    printf "[INFO] Generating build directories\n"
+    cmake -S "$name" -B "$name/build"
+
+    printf "[INFO] Generation successful\n"
+}
+
+build() {
+    if [[ ! -f "CMakeLists.txt" ]]; then
+        printf "[ERROR] CMakeLists.txt not found. Check if you are in the project root\n"
+        return 1
+    fi
+    if [[ ! -d "build" ]]; then
+        printf "[WARN] Failed to locate build directory. Configuring\n"
+        cmake -S . -B build
+    fi
+    cmake --build build
+}
+
+build_and_run() {
+    build
+    if [[ ! -f "./build/main" ]]; then
+        printf "[ERROR] Failed to locate binary 'main'\n"
+        return 1
+    fi
+    ./build/main
+}
+
+sync() {
+    if [[ ! -f "CMakeLists.txt" ]]; then
+        printf "[ERROR] CMakeLists.txt not found. Check if you are in the project root\n"
+        return 1
+    fi
+
+    if [[ ! -f ".source_files" ]]; then
+        printf "[WARN] .source_files not found. Recreating\n"
+    fi
+
+    printf "[INFO] Scanning src/ for source files\n"
+    find . -maxdepth 1 -name "*.cpp" -printf "%f\n" | sort >.source_files
+    find src/ -name "*.cpp" -printf "src/%f\n" | sort >>.source_files
+
+    printf "[INFO] Updating CMakeLists.txt\n"
+    sed -i '/^target_sources/,/^)/d' CMakeLists.txt
+    {
+        printf "target_sources(main PRIVATE\n"
+        while IFS= read -r file; do
+            printf "    %s\n" "$file"
+        done <.source_files
+        printf ")\n"
+    } >>CMakeLists.txt
+
+    printf "[INFO] Sync successful\n"
+}
+
+memcheck() {
+    if ! command -v git &>/dev/null; then
+        printf "[ERROR] Valgrind not found. Install valgrind and re-run\n"
+        return 1
+    fi
+
+    if [[ ! -f "CMakeLists.txt" ]]; then
+        printf "[ERROR] CMakeLists.txt not found. Check if you are in the project root\n"
+        return 1
+    fi
+
+    if [[ ! -f "./build/main" ]]; then
+        printf "[ERROR] Failed to locate binary 'main'\n"
+        return 1
+    fi
+
+    valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes ./build/main
+}
+
+if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
+    display_help
+    exit 0
+fi
+
+if [[ $# -eq 0 ]]; then
+    printf "[ERROR] You must provide a command\n"
+    exit 1
+fi
+
+case "$1" in
+"init")
+    shift
+    init "$@"
+    ;;
+"build") build ;;
+"sync") sync ;;
+"run") build_and_run ;;
+"memcheck") memcheck ;;
+*) printf "[ERROR] Invalid command '%s'\n" "$1" ;;
+esac
