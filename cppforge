@@ -127,7 +127,7 @@ sync() {
         printf "[WARN] .source_files not found. Recreating\n"
     fi
 
-    printf "[INFO] Scanning src/ for source files\n"
+    printf "[INFO] Scanning for source files\n"
     find . -maxdepth 1 -name "*.cpp" -printf "%f\n" | sort >.source_files
     find src/ -name "*.cpp" -printf "src/%f\n" | sort >>.source_files
 
