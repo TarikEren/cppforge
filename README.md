@@ -54,6 +54,17 @@ cminit memcheck
 - Runs valgrind with
 `valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes ./build/main`
 
+### Debug
+
+```bash
+cminit debug --gdb      # For using gdb
+cminit debug --lldb     # For using lldb
+cminit debug            # Defaults back to gdb
+```
+
+- Creates and builds a `build-debug` directory in debug format
+- Runs the desired compiler
+
 ## Installation
 
 Simply run
