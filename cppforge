@@ -1,5 +1,8 @@
 #!/usr/bin/bash
 
+# TODO: Consider support for multiple executables
+# instead of just "main"
+
 set -euo pipefail
 
 display_help() {
@@ -8,6 +11,7 @@ display_help() {
     printf "\tbuild: Builds the project at the current working directory\n"
     printf "\trun: Runs the project at the current working directory\n"
     printf "\tsync: Synchronizes the source files and CMakeLists.txt in the current working directory\n"
+    printf "\tdebug [--gdb|--lldb]: Builds the project in debug mode and runs debugger\n"
 }
 
 init() {
@@ -96,6 +100,54 @@ EOF
     printf "[INFO] Generation successful\n"
 }
 
+debug() {
+    if [[ ! -f "CMakeLists.txt" ]]; then
+        printf "[ERROR] CMakeLists.txt not found. Check if you are in the project root\n"
+        return 1
+    fi
+
+    if ! command -v gdb &>/dev/null && ! command -v lldb &>/dev/null; then
+        printf "[ERROR] No debugger found. Install 'gdb' or 'lldb' and re-run\n"
+        return 1
+    fi
+
+    local build_dir="build-debug"
+
+    if [[ ! -d "$build_dir" ]]; then
+        printf "[INFO] Configuring debug build\n"
+        cmake -S . -B "$build_dir" -DCMAKE_BUILD_TYPE=Debug
+    fi
+
+    printf "[INFO] Building debug binary\n"
+    cmake --build "$build_dir"
+
+    if [[ $# -gt 0 ]]; then
+        case "$1" in
+        "--gdb")
+            if ! command -v gdb &>/dev/null; then
+                printf "[ERROR] 'gdb' not found\n"
+                return 1
+            fi
+            gdb --args "./$build_dir/main"
+            ;;
+        "--lldb")
+            if ! command -v lldb &>/dev/null; then
+                printf "[ERROR] 'lldb' not found\n"
+                return 1
+            fi
+            lldb -- "./$build_dir/main"
+            ;;
+        *)
+            printf "[ERROR] Unknown debugger '$1'\n"
+            return 1
+            ;;
+        esac
+    else
+        printf "[INFO] No debugger specified, using 'gdb'\n"
+        gdb --args "./$build_dir/main"
+    fi
+}
+
 build() {
     if [[ ! -f "CMakeLists.txt" ]]; then
         printf "[ERROR] CMakeLists.txt not found. Check if you are in the project root\n"
@@ -145,7 +197,7 @@ sync() {
 }
 
 memcheck() {
-    if ! command -v git &>/dev/null; then
+    if ! command -v valgrind &>/dev/null; then
         printf "[ERROR] Valgrind not found. Install valgrind and re-run\n"
         return 1
     fi
@@ -182,5 +234,9 @@ case "$1" in
 "sync") sync ;;
 "run") build_and_run ;;
 "memcheck") memcheck ;;
+"debug")
+    shift
+    debug "$@"
+    ;;
 *) printf "[ERROR] Invalid command '%s'\n" "$1" ;;
 esac
