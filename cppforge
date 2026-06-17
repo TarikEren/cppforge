@@ -93,7 +93,10 @@ EOF
     cat <<'EOF' >$name/.source_files
 main.cpp
 EOF
-
+    printf "[INFO] Generating .clang-format\n"
+    cat <<'EOF' >$name/.clang-format
+IndentWidth: 4
+EOF
     printf "[INFO] Generating build directories\n"
     cmake -S "$name" -B "$name/build"
 
