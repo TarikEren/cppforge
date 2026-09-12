@@ -184,7 +184,7 @@ sync() {
 
     printf "[INFO] Scanning for source files\n"
     find . -maxdepth 1 -name "*.cpp" -printf "%f\n" | sort >.source_files
-    find src/ -name "*.cpp" -printf "src/%f\n" | sort >>.source_files
+    find src/ -name "*.cpp" -printf "src/%P\n" | sort >>.source_files
 
     printf "[INFO] Updating CMakeLists.txt\n"
     sed -i '/^target_sources/,/^)/d' CMakeLists.txt
