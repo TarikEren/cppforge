@@ -2,6 +2,8 @@
 
 # TODO: Consider support for multiple executables
 # instead of just "main"
+# TODO: Add `.clangd` file generation for enforcing
+# the C++ version
 
 set -euo pipefail
 
